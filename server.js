@@ -10,29 +10,19 @@ app.use(express.json());
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-if (!OPENROUTER_API_KEY) {
-  console.error("❌ OPENROUTER_API_KEY is missing!");
-} else {
-  console.log("✅ OPENROUTER_API_KEY loaded successfully.");
-}
-
-// 1. تعريف الأدوات (Tools): كيانات + حركات + (أمانات وديون: إضافة/تعديل/تسوية)
+// أدوات الذكاء الاصطناعي الشاملة (Entities + Transactions + TrustDebt + Currencies)
 const tools = [
   {
     type: 'function',
     function: {
       name: 'createEntity',
-      description: 'إنشاء أو إضافة عميل/زبون جديد أو مجموعة/شركة جديدة في النظام',
+      description: 'إنشاء عميل جديد أو مجموعة/شركة جديدة',
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'اسم العميل أو اسم المجموعة / الشركة' },
-          entityType: {
-            type: 'string',
-            enum: ['client', 'group'],
-            description: 'نوع الكيان: client للعملاء، group للمجموعات',
-          },
-          notes: { type: 'string', description: 'ملاحظات إضافية' },
+          name: { type: 'string', description: 'اسم العميل أو المجموعة' },
+          entityType: { type: 'string', enum: ['client', 'group'] },
+          notes: { type: 'string' },
         },
         required: ['name', 'entityType'],
       },
@@ -42,7 +32,7 @@ const tools = [
     type: 'function',
     function: {
       name: 'recordMultipleTransactions',
-      description: 'تسجيل حركة واحدة أو عدة حركات مالية (لنا/لكم، قبض/صرف) على العملاء أو المجموعات',
+      description: 'تسجيل حركة واحدة أو عدة حركات مالية (لنا/لكم) لعميل أو عدة عملاء',
       parameters: {
         type: 'object',
         properties: {
@@ -51,12 +41,11 @@ const tools = [
             items: {
               type: 'object',
               properties: {
-                entityName: { type: 'string', description: 'اسم العميل أو المجموعة' },
-                entityType: { type: 'string', enum: ['client', 'group'] },
+                entityName: { type: 'string' },
                 direction: { type: 'string', enum: ['LANA', 'LAKUM'] },
-                amount: { type: 'number', description: 'المبلغ المالي' },
-                currencyCode: { type: 'string', description: 'رمز العملة مثل USD, SYP, EUR, TRY' },
-                note: { type: 'string', description: 'ملاحظات الحركة' },
+                amount: { type: 'number' },
+                currencyCode: { type: 'string' },
+                note: { type: 'string' },
               },
               required: ['entityName', 'direction', 'amount'],
             },
@@ -70,50 +59,49 @@ const tools = [
     type: 'function',
     function: {
       name: 'manageTrustDebt',
-      description: 'إدارة الأمانات والديون (تسجيل أمانة جديدة، تسجيل دين جديد، تعديل أمانة/دين قائم، أو تسوية/سداد أمانة/دين)',
+      description: 'إدارة الأمانات والديون (إضافة، تعديل، تسوية/سداد/خلاص)',
       parameters: {
         type: 'object',
         properties: {
-          action: {
-            type: 'string',
-            enum: ['CREATE', 'UPDATE', 'SETTLE'],
-            description: 'نوع الإجراء: CREATE لإضافة جديدة، UPDATE لتعديل أمانة/دين موجود، SETTLE لتسوية/خلاص/سداد الدين أو الأمانة',
-          },
-          type: {
-            type: 'string',
-            enum: ['trust', 'debt'],
-            description: 'النوع: trust للأمانة (أمانة لنا أو علينا)، debt للدين (دين ممتاز/خارجي)',
-          },
-          name: {
-            type: 'string',
-            description: 'اسم الشخص أو الجهة صاحب الأمانة أو الدين',
-          },
-          amount: {
-            type: 'number',
-            description: 'المبلغ (مطلوب في حال الإضافة والتعديل)',
-          },
-          currencyCode: {
-            type: 'string',
-            description: 'رمز العملة مثل USD, SYP, EUR, TRY',
-          },
-          note: {
-            type: 'string',
-            description: 'ملاحظات أو بيان العملية',
-          },
+          action: { type: 'string', enum: ['CREATE', 'UPDATE', 'SETTLE'] },
+          type: { type: 'string', enum: ['trust', 'debt'] },
+          name: { type: 'string' },
+          amount: { type: 'number' },
+          currencyCode: { type: 'string' },
+          note: { type: 'string' },
         },
         required: ['action', 'name'],
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'manageCurrencies',
+      description: 'إدارة عملات الدرج وأسعار الصرف (إضافة عملة، تعديل سعر الصرف، حذف عملة، تعديل رصيد الدرج)',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { 
+            type: 'string', 
+            enum: ['ADD_CURRENCY', 'UPDATE_RATE', 'DELETE_CURRENCY', 'UPDATE_BALANCE'],
+            description: 'نوع العملية على العملة'
+          },
+          currencyCode: { type: 'string', description: 'رمز العملة مثل EUR, TRY, SYP, SAR, CAD' },
+          currencyName: { type: 'string', description: 'اسم العملة بالعربي مثل ليرة تركية، يورو' },
+          symbol: { type: 'string', description: 'رمز العملة الشكلِي مثل $, €, ₺' },
+          exchangeRate: { type: 'number', description: 'سعر الصرف مقابل العملة الأساسية USD' },
+          newBalance: { type: 'number', description: 'الرصيد الجديد للعملة في الدرج عند التعديل المباشر' },
+        },
+        required: ['action', 'currencyCode'],
+      },
+    },
+  },
 ];
 
-// 2. الـ Endpoint الرئيسية
 app.post('/process-ai', async (req, res) => {
   const { prompt } = req.body;
-
-  if (!prompt) {
-    return res.status(400).json({ error: 'الطلب فارغ' });
-  }
+  if (!prompt) return res.status(400).json({ error: 'الطلب فارغ' });
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -133,49 +121,28 @@ app.post('/process-ai', async (req, res) => {
     });
 
     const data = await response.json();
+    if (data.error) return res.status(500).json({ error: 'خطأ من خدمة AI', details: data.error });
 
-    if (data.error) {
-      console.error('OpenRouter API Error:', data.error);
-      return res.status(500).json({ error: 'خطأ من خدمة الذكاء الاصطناعي', details: data.error.message || data.error });
-    }
+    const responseMessage = data.choices?.[0]?.message;
+    if (!responseMessage) return res.status(500).json({ error: 'لم يتم استلام رد' });
 
-    const responseMessage = data.choices && data.choices[0] ? data.choices[0].message : null;
-
-    if (!responseMessage) {
-      return res.status(500).json({ error: 'لم يتم استلام رد من النموذج' });
-    }
-
+    // في حال رجوع عدة أداوات (Multi-Tool Calls) أو أداة واحدة
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-      const toolCall = responseMessage.tool_calls[0];
-      let functionArgs = {};
-      
-      try {
-        functionArgs = typeof toolCall.function.arguments === 'string' 
-          ? JSON.parse(toolCall.function.arguments) 
-          : toolCall.function.arguments;
-      } catch (e) {
-        console.error('Failed to parse function arguments:', e);
-      }
-
-      return res.json({
-        type: 'FUNCTION_CALL',
-        name: toolCall.function.name,
-        args: functionArgs,
+      const calls = responseMessage.tool_calls.map(tc => {
+        let args = {};
+        try { args = typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments; } catch (e) {}
+        return { name: tc.function.name, args };
       });
+
+      return res.json({ type: 'MULTI_FUNCTION_CALL', calls });
     }
 
-    return res.json({
-      type: 'TEXT',
-      message: responseMessage.content || '',
-    });
+    return res.json({ type: 'TEXT', message: responseMessage.content || '' });
 
   } catch (error) {
-    console.error('Error in server process:', error);
-    return res.status(500).json({ error: 'حدث خطأ في السيرفر أثناء معالجة الطلب', details: error.message });
+    return res.status(500).json({ error: 'حدث خطأ في السيرفر', details: error.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`AI Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`AI Server running on port ${PORT}`));
