@@ -48,9 +48,9 @@ app.post('/process-ai', async (req, res) => {
   }
 
   try {
-    // استخدام موديل gemini-2.5-flash أو gemini-2.0-flash
+    // 💡 التحديث إلى الموديل المستقر والرئيسي حالياً
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       tools: {
         functionDeclarations: [createClientDeclaration],
       },
