@@ -10,33 +10,70 @@ app.use(express.json());
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-// التأكد من وجود المفتاح في البيئة
 if (!OPENROUTER_API_KEY) {
   console.error("❌ OPENROUTER_API_KEY is missing!");
 } else {
   console.log("✅ OPENROUTER_API_KEY loaded successfully.");
 }
 
-// 1. تعريف دالة إضافة العميل بأسلوب JSON Schema القياسي
+// 1. تعريف الأدوات (Tools): إضافة عميل + تسجيل حركة مالية (لنا / لكم)
 const tools = [
   {
     type: 'function',
     function: {
-      name: 'createClient',
-      description: 'إنشاء أو إضافة عميل/زبون/يوزر جديد في النظام',
+      name: 'createEntity',
+      description: 'إنشاء أو إضافة عميل/زبون/مجموعة جديدة في النظام',
       parameters: {
         type: 'object',
         properties: {
           name: {
             type: 'string',
-            description: 'اسم العميل أو الشركة أو اليوزر',
+            description: 'اسم العميل أو الجهة المالية أو الشركة',
+          },
+          entityType: {
+            type: 'string',
+            description: 'نوع الكيان: client للعملاء المباشرين، أو group للمجموعات',
           },
           notes: {
             type: 'string',
-            description: 'ملاحظات إضافية إن وجدت',
+            description: 'ملاحظات إضافية عن العميل إن وجدت',
           },
         },
         required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'recordTransaction',
+      description: 'تسجيل حركة مالية جديدة على عميل أو كيان في النظام (لنا/لكم، قبض/صرف)',
+      parameters: {
+        type: 'object',
+        properties: {
+          entityName: {
+            type: 'string',
+            description: 'اسم العميل أو الكيان المالي المراد تسجيل الحركة عليه',
+          },
+          direction: {
+            type: 'string',
+            enum: ['LANA', 'LAKUM'],
+            description: 'اتجاه الحركة: LANA إذا كان المكون (لنا/قبض/دين لنا على الزبون)، LAKUM إذا كان المكون (لكم/صرف/دفعة للزبون علينا)',
+          },
+          amount: {
+            type: 'number',
+            description: 'المبلغ المالي المرقوم للحركة',
+          },
+          currencyCode: {
+            type: 'string',
+            description: 'رمز العملة المذكورة مثل USD, SYP, EUR, TRY. إذا لم تذكر اتركها فارغة',
+          },
+          note: {
+            type: 'string',
+            description: 'ملاحظات أو بيان العملية (مثل: إيجار، دفعة حساب، سداد فاتورة)',
+          },
+        },
+        required: ['entityName', 'direction', 'amount'],
       },
     },
   },
@@ -51,17 +88,15 @@ app.post('/process-ai', async (req, res) => {
   }
 
   try {
-    // إرسال الطلب لـ OpenRouter API
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://al-yusr.web.app', // خياري: رابط تطبيقك
+        'HTTP-Referer': 'https://al-yusr.web.app',
         'X-Title': 'Al-Yusr Cash System',
       },
       body: JSON.stringify({
-        // openrouter/free يوجّه الطلب تلقائياً لأفضل موديل مجاني متاح في تلك اللحظة
         model: 'openrouter/free',
         messages: [{ role: 'user', content: prompt }],
         tools: tools,
@@ -71,7 +106,6 @@ app.post('/process-ai', async (req, res) => {
 
     const data = await response.json();
 
-    // التحقق من وجود خطأ في الـ API
     if (data.error) {
       console.error('OpenRouter API Error:', data.error);
       return res.status(500).json({ 
@@ -86,7 +120,7 @@ app.post('/process-ai', async (req, res) => {
       return res.status(500).json({ error: 'لم يتم استلام رد من النموذج' });
     }
 
-    // إذا طلب النموذج استدعاء دالة (Function Call)
+    // إذا قرر الـ AI استدعاء إحدى الدوال (createEntity أو recordTransaction)
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
       const toolCall = responseMessage.tool_calls[0];
       let functionArgs = {};
@@ -106,7 +140,7 @@ app.post('/process-ai', async (req, res) => {
       });
     }
 
-    // إذا كان الرد نصياً فقط
+    // إذا كان الرد مجرد سؤال أو استفسار عادي
     return res.json({
       type: 'TEXT',
       message: responseMessage.content || '',
