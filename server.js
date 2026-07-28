@@ -11,7 +11,7 @@ app.use(express.json());
 
 // التأكد من تحميل المفتاح
 if (!process.env.GEMINI_API_KEY) {
-  console.error("❌ GEMINI_API_KEY is missing!");
+  console.error("❌ GEMINI_API_KEY is missing in environment variables!");
 } else {
   console.log("✅ GEMINI_API_KEY loaded successfully.");
 }
@@ -47,9 +47,9 @@ app.post('/process-ai', async (req, res) => {
   }
 
   try {
-    // الموديل المستقر والمدعوم رسمياً
+    // موديل gemini-1.5-flash يمتلك حصة مجانية متوفرة ومستقرة دائماً
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       tools: {
         functionDeclarations: [createClientDeclaration],
       },
@@ -59,6 +59,7 @@ app.post('/process-ai', async (req, res) => {
     const response = await result.response;
     const functionCalls = response.functionCalls();
 
+    // إذا قرر Gemini تنفيذ دالة
     if (functionCalls && functionCalls.length > 0) {
       const call = functionCalls[0];
       return res.json({
@@ -68,6 +69,7 @@ app.post('/process-ai', async (req, res) => {
       });
     }
 
+    // إذا كان الرد نصياً عادياً
     return res.json({
       type: 'TEXT',
       message: response.text(),
@@ -84,6 +86,7 @@ app.post('/process-ai', async (req, res) => {
   }
 });
 
+// المنفذ الخاص بالسيرفر السحابي
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`AI Server running on port ${PORT}`);
