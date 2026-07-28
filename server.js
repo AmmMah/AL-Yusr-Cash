@@ -16,7 +16,7 @@ if (!OPENROUTER_API_KEY) {
   console.log("✅ OPENROUTER_API_KEY loaded successfully.");
 }
 
-// 1. تعريف الأدوات (Tools): إضافة عميل + تسجيل حركة مالية (لنا / لكم)
+// 1. تعريف الأدوات (Tools): إضافة عميل + تسجيل حركة/حركات مالية متعددة
 const tools = [
   {
     type: 'function',
@@ -46,34 +46,44 @@ const tools = [
   {
     type: 'function',
     function: {
-      name: 'recordTransaction',
-      description: 'تسجيل حركة مالية جديدة على عميل أو كيان في النظام (لنا/لكم، قبض/صرف)',
+      name: 'recordMultipleTransactions',
+      description: 'تسجيل حركة واحدة أو عدة حركات مالية دفعة واحدة لعميل واحد أو عدة عملاء (لنا/لكم، قبض/صرف)',
       parameters: {
         type: 'object',
         properties: {
-          entityName: {
-            type: 'string',
-            description: 'اسم العميل أو الكيان المالي المراد تسجيل الحركة عليه',
-          },
-          direction: {
-            type: 'string',
-            enum: ['LANA', 'LAKUM'],
-            description: 'اتجاه الحركة: LANA إذا كان المكون (لنا/قبض/دين لنا على الزبون)، LAKUM إذا كان المكون (لكم/صرف/دفعة للزبون علينا)',
-          },
-          amount: {
-            type: 'number',
-            description: 'المبلغ المالي المرقوم للحركة',
-          },
-          currencyCode: {
-            type: 'string',
-            description: 'رمز العملة المذكورة مثل USD, SYP, EUR, TRY. إذا لم تذكر اتركها فارغة',
-          },
-          note: {
-            type: 'string',
-            description: 'ملاحظات أو بيان العملية (مثل: إيجار، دفعة حساب، سداد فاتورة)',
+          transactions: {
+            type: 'array',
+            description: 'قائمة بالحركات المالية المطلوب تسجيلها',
+            items: {
+              type: 'object',
+              properties: {
+                entityName: {
+                  type: 'string',
+                  description: 'اسم العميل أو الكيان المالي المراد تسجيل الحركة عليه',
+                },
+                direction: {
+                  type: 'string',
+                  enum: ['LANA', 'LAKUM'],
+                  description: 'اتجاه الحركة: LANA (لنا/قبض/دين لنا)، LAKUM (لكم/صرف/دفعة للزبون علينا)',
+                },
+                amount: {
+                  type: 'number',
+                  description: 'المبلغ المالي المرقوم للحركة',
+                },
+                currencyCode: {
+                  type: 'string',
+                  description: 'رمز العملة المذكورة مثل USD, SYP, EUR, TRY. إذا لم تذكر اتركها فارغة',
+                },
+                note: {
+                  type: 'string',
+                  description: 'ملاحظات أو بيان العملية (مثل: إيجار، دفعة حساب، سداد فاتورة)',
+                },
+              },
+              required: ['entityName', 'direction', 'amount'],
+            },
           },
         },
-        required: ['entityName', 'direction', 'amount'],
+        required: ['transactions'],
       },
     },
   },
@@ -120,7 +130,7 @@ app.post('/process-ai', async (req, res) => {
       return res.status(500).json({ error: 'لم يتم استلام رد من النموذج' });
     }
 
-    // إذا قرر الـ AI استدعاء إحدى الدوال (createEntity أو recordTransaction)
+    // إذا قرر الـ AI استدعاء إحدى الدوال
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
       const toolCall = responseMessage.tool_calls[0];
       let functionArgs = {};
