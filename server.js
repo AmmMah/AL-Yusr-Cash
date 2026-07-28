@@ -16,7 +16,7 @@ if (!OPENROUTER_API_KEY) {
   console.log("✅ OPENROUTER_API_KEY loaded successfully.");
 }
 
-// 1. تعريف الأدوات (Tools): إضافة عميل/مجموعة + تسجيل حركات مالية
+// 1. تعريف الأدوات (Tools): كيانات + حركات + (أمانات وديون: إضافة/تعديل/تسوية)
 const tools = [
   {
     type: 'function',
@@ -26,19 +26,13 @@ const tools = [
       parameters: {
         type: 'object',
         properties: {
-          name: {
-            type: 'string',
-            description: 'اسم العميل أو اسم المجموعة / الشركة',
-          },
+          name: { type: 'string', description: 'اسم العميل أو اسم المجموعة / الشركة' },
           entityType: {
             type: 'string',
             enum: ['client', 'group'],
-            description: 'نوع الكيان: client للعملاء المباشرين، أو group للمجموعات والشركات',
+            description: 'نوع الكيان: client للعملاء، group للمجموعات',
           },
-          notes: {
-            type: 'string',
-            description: 'ملاحظات إضافية عن العميل أو المجموعة إن وجدت',
-          },
+          notes: { type: 'string', description: 'ملاحظات إضافية' },
         },
         required: ['name', 'entityType'],
       },
@@ -48,48 +42,66 @@ const tools = [
     type: 'function',
     function: {
       name: 'recordMultipleTransactions',
-      description: 'تسجيل حركة واحدة أو عدة حركات مالية دفعة واحدة لعميل أو لمجموعة/شركة (لنا/لكم، قبض/صرف)',
+      description: 'تسجيل حركة واحدة أو عدة حركات مالية (لنا/لكم، قبض/صرف) على العملاء أو المجموعات',
       parameters: {
         type: 'object',
         properties: {
           transactions: {
             type: 'array',
-            description: 'قائمة بالحركات المالية المطلوب تسجيلها',
             items: {
               type: 'object',
               properties: {
-                entityName: {
-                  type: 'string',
-                  description: 'اسم العميل أو اسم المجموعة/الشركة المراد تسجيل الحركة عليها',
-                },
-                entityType: {
-                  type: 'string',
-                  enum: ['client', 'group'],
-                  description: 'نوع الكيان إذا ذُكر: client لعميل، group لمجموعة. إذا لم يحدد اتركه فارغاً',
-                },
-                direction: {
-                  type: 'string',
-                  enum: ['LANA', 'LAKUM'],
-                  description: 'اتجاه الحركة: LANA (لنا/قبض/دين لنا)، LAKUM (لكم/صرف/دفعة للزبون أو المجموعة)',
-                },
-                amount: {
-                  type: 'number',
-                  description: 'المبلغ المالي المرقوم للحركة',
-                },
-                currencyCode: {
-                  type: 'string',
-                  description: 'رمز العملة مثل USD, SYP, EUR, TRY. إذا لم تذكر اتركها فارغة',
-                },
-                note: {
-                  type: 'string',
-                  description: 'ملاحظات أو بيان العملية',
-                },
+                entityName: { type: 'string', description: 'اسم العميل أو المجموعة' },
+                entityType: { type: 'string', enum: ['client', 'group'] },
+                direction: { type: 'string', enum: ['LANA', 'LAKUM'] },
+                amount: { type: 'number', description: 'المبلغ المالي' },
+                currencyCode: { type: 'string', description: 'رمز العملة مثل USD, SYP, EUR, TRY' },
+                note: { type: 'string', description: 'ملاحظات الحركة' },
               },
               required: ['entityName', 'direction', 'amount'],
             },
           },
         },
         required: ['transactions'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manageTrustDebt',
+      description: 'إدارة الأمانات والديون (تسجيل أمانة جديدة، تسجيل دين جديد، تعديل أمانة/دين قائم، أو تسوية/سداد أمانة/دين)',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['CREATE', 'UPDATE', 'SETTLE'],
+            description: 'نوع الإجراء: CREATE لإضافة جديدة، UPDATE لتعديل أمانة/دين موجود، SETTLE لتسوية/خلاص/سداد الدين أو الأمانة',
+          },
+          type: {
+            type: 'string',
+            enum: ['trust', 'debt'],
+            description: 'النوع: trust للأمانة (أمانة لنا أو علينا)، debt للدين (دين ممتاز/خارجي)',
+          },
+          name: {
+            type: 'string',
+            description: 'اسم الشخص أو الجهة صاحب الأمانة أو الدين',
+          },
+          amount: {
+            type: 'number',
+            description: 'المبلغ (مطلوب في حال الإضافة والتعديل)',
+          },
+          currencyCode: {
+            type: 'string',
+            description: 'رمز العملة مثل USD, SYP, EUR, TRY',
+          },
+          note: {
+            type: 'string',
+            description: 'ملاحظات أو بيان العملية',
+          },
+        },
+        required: ['action', 'name'],
       },
     },
   },
@@ -124,10 +136,7 @@ app.post('/process-ai', async (req, res) => {
 
     if (data.error) {
       console.error('OpenRouter API Error:', data.error);
-      return res.status(500).json({ 
-        error: 'خطأ من خدمة الذكاء الاصطناعي', 
-        details: data.error.message || data.error 
-      });
+      return res.status(500).json({ error: 'خطأ من خدمة الذكاء الاصطناعي', details: data.error.message || data.error });
     }
 
     const responseMessage = data.choices && data.choices[0] ? data.choices[0].message : null;
@@ -162,10 +171,7 @@ app.post('/process-ai', async (req, res) => {
 
   } catch (error) {
     console.error('Error in server process:', error);
-    return res.status(500).json({
-      error: 'حدث خطأ في السيرفر أثناء معالجة الطلب',
-      details: error.message,
-    });
+    return res.status(500).json({ error: 'حدث خطأ في السيرفر أثناء معالجة الطلب', details: error.message });
   }
 });
 
