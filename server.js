@@ -10,6 +10,13 @@ app.use(express.json());
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
+// التأكد من وجود المفتاح في البيئة
+if (!OPENROUTER_API_KEY) {
+  console.error("❌ OPENROUTER_API_KEY is missing!");
+} else {
+  console.log("✅ OPENROUTER_API_KEY loaded successfully.");
+}
+
 // 1. تعريف دالة إضافة العميل بأسلوب JSON Schema القياسي
 const tools = [
   {
@@ -44,35 +51,53 @@ app.post('/process-ai', async (req, res) => {
   }
 
   try {
-    // الاتصال بـ OpenRouter باستخدام fetch العادي
+    // إرسال الطلب لـ OpenRouter API
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://al-yusr.web.app', // خياري: رابط تطبيقك
+        'X-Title': 'Al-Yusr Cash System',
       },
-     body: JSON.stringify({
-  // تم تصحيح اسم الموديل هنا
-  model: 'google/gemini-2.0-flash-exp:free',
-  messages: [{ role: 'user', content: prompt }],
-  tools: tools,
-  tool_choice: 'auto',
-}),
+      body: JSON.stringify({
+        // openrouter/free يوجّه الطلب تلقائياً لأفضل موديل مجاني متاح في تلك اللحظة
+        model: 'openrouter/free',
+        messages: [{ role: 'user', content: prompt }],
+        tools: tools,
+        tool_choice: 'auto',
+      }),
     });
 
     const data = await response.json();
 
+    // التحقق من وجود خطأ في الـ API
     if (data.error) {
       console.error('OpenRouter API Error:', data.error);
-      return res.status(500).json({ error: 'خطأ من الـ AI', details: data.error.message });
+      return res.status(500).json({ 
+        error: 'خطأ من خدمة الذكاء الاصطناعي', 
+        details: data.error.message || data.error 
+      });
     }
 
-    const responseMessage = data.choices[0]?.message;
+    const responseMessage = data.choices && data.choices[0] ? data.choices[0].message : null;
+
+    if (!responseMessage) {
+      return res.status(500).json({ error: 'لم يتم استلام رد من النموذج' });
+    }
 
     // إذا طلب النموذج استدعاء دالة (Function Call)
-    if (responseMessage?.tool_calls && responseMessage.tool_calls.length > 0) {
+    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
       const toolCall = responseMessage.tool_calls[0];
-      const functionArgs = JSON.parse(toolCall.function.arguments);
+      let functionArgs = {};
+      
+      try {
+        functionArgs = typeof toolCall.function.arguments === 'string' 
+          ? JSON.parse(toolCall.function.arguments) 
+          : toolCall.function.arguments;
+      } catch (e) {
+        console.error('Failed to parse function arguments:', e);
+      }
 
       return res.json({
         type: 'FUNCTION_CALL',
@@ -84,13 +109,13 @@ app.post('/process-ai', async (req, res) => {
     // إذا كان الرد نصياً فقط
     return res.json({
       type: 'TEXT',
-      message: responseMessage?.content || '',
+      message: responseMessage.content || '',
     });
 
   } catch (error) {
     console.error('Error in server process:', error);
     return res.status(500).json({
-      error: 'حدث خطأ في معالجة الطلب',
+      error: 'حدث خطأ في السيرفر أثناء معالجة الطلب',
       details: error.message,
     });
   }
