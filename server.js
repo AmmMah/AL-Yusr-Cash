@@ -9,8 +9,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// تهيئة Gemini API
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// التأكد من تحميل المفتاح
+if (!process.env.GEMINI_API_KEY) {
+  console.error("❌ GEMINI_API_KEY is missing!");
+} else {
+  console.log("✅ GEMINI_API_KEY loaded successfully.");
+}
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // 1. تعريف دالة إضافة العميل
 const createClientDeclaration = {
@@ -32,33 +38,6 @@ const createClientDeclaration = {
   },
 };
 
-// قائمة الموديلات المتاحة للتجربة بالتالي
-const AVAILABLE_MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-8b'];
-
-// دالة لاستدعاء الموديل مع Fallback تلقائي
-async function generateWithFallback(prompt) {
-  let lastError = null;
-
-  for (const modelName of AVAILABLE_MODELS) {
-    try {
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        tools: {
-          functionDeclarations: [createClientDeclaration],
-        },
-      });
-
-      const result = await model.generateContent(prompt);
-      return await result.response;
-    } catch (err) {
-      console.warn(`⚠️ فشل الموديل ${modelName}، جاري المحاولة مع الموديل التالي...`);
-      lastError = err;
-    }
-  }
-
-  throw lastError;
-}
-
 // 2. الـ Endpoint
 app.post('/process-ai', async (req, res) => {
   const { prompt } = req.body;
@@ -68,10 +47,18 @@ app.post('/process-ai', async (req, res) => {
   }
 
   try {
-    const response = await generateWithFallback(prompt);
+    // الموديل المستقر والمدعوم رسمياً
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      tools: {
+        functionDeclarations: [createClientDeclaration],
+      },
+    });
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
     const functionCalls = response.functionCalls();
 
-    // إذا قرر Gemini تنفيذ دالة
     if (functionCalls && functionCalls.length > 0) {
       const call = functionCalls[0];
       return res.json({
@@ -81,7 +68,6 @@ app.post('/process-ai', async (req, res) => {
       });
     }
 
-    // إذا كان الرد نصياً عادياً
     return res.json({
       type: 'TEXT',
       message: response.text(),
@@ -94,12 +80,11 @@ app.post('/process-ai', async (req, res) => {
       return res.status(429).json({ error: 'تجاوزت الحد المسموح مؤقتاً، انتظر بضع ثوانٍ وأعد المحاولة.' });
     }
 
-    return res.status(500).json({ error: 'حدث خطأ في معالجة الطلب عبر الـ AI' });
+    return res.status(500).json({ error: 'حدث خطأ في معالجة الطلب عبر الـ AI', details: error.message });
   }
 });
 
- const PORT = process.env.PORT || 3000;
-
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`AI Server running on port ${PORT}`);
 });
