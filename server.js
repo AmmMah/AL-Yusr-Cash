@@ -109,7 +109,6 @@ app.post('/process-ai', async (req, res) => {
       return res.status(500).json({ error: 'مفتاح GEMINI_API_KEY غير مضاف في متغيرات البيئة' });
     }
 
-    // استدعاء موديل Gemini 2.5 Flash السريع والمجاني
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: prompt,
@@ -125,7 +124,6 @@ app.post('/process-ai', async (req, res) => {
       },
     });
 
-    // الرد المحتمل من الموديل
     const functionCalls = response.functionCalls;
 
     if (functionCalls && functionCalls.length > 0) {
