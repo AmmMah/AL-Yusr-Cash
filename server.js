@@ -9,14 +9,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// التأكد من تحميل المفتاح
-if (!process.env.GEMINI_API_KEY) {
-  console.error("❌ GEMINI_API_KEY is missing in environment variables!");
+const apiKey = process.env.GEMINI_API_KEY;
+
+if (!apiKey) {
+  console.error('❌ Warning: GEMINI_API_KEY is not defined!');
 } else {
-  console.log("✅ GEMINI_API_KEY loaded successfully.");
+  console.log('✅ GEMINI_API_KEY is configured.');
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(apiKey || '');
 
 // 1. تعريف دالة إضافة العميل
 const createClientDeclaration = {
@@ -38,7 +39,7 @@ const createClientDeclaration = {
   },
 };
 
-// 2. الـ Endpoint
+// 2. الـ Endpoint الرئيسية
 app.post('/process-ai', async (req, res) => {
   const { prompt } = req.body;
 
@@ -47,9 +48,9 @@ app.post('/process-ai', async (req, res) => {
   }
 
   try {
-    // موديل gemini-1.5-flash يمتلك حصة مجانية متوفرة ومستقرة دائماً
+    // استخدام موديل gemini-2.5-flash أو gemini-2.0-flash
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       tools: {
         functionDeclarations: [createClientDeclaration],
       },
@@ -59,7 +60,6 @@ app.post('/process-ai', async (req, res) => {
     const response = await result.response;
     const functionCalls = response.functionCalls();
 
-    // إذا قرر Gemini تنفيذ دالة
     if (functionCalls && functionCalls.length > 0) {
       const call = functionCalls[0];
       return res.json({
@@ -69,7 +69,6 @@ app.post('/process-ai', async (req, res) => {
       });
     }
 
-    // إذا كان الرد نصياً عادياً
     return res.json({
       type: 'TEXT',
       message: response.text(),
@@ -82,11 +81,13 @@ app.post('/process-ai', async (req, res) => {
       return res.status(429).json({ error: 'تجاوزت الحد المسموح مؤقتاً، انتظر بضع ثوانٍ وأعد المحاولة.' });
     }
 
-    return res.status(500).json({ error: 'حدث خطأ في معالجة الطلب عبر الـ AI', details: error.message });
+    return res.status(error.status || 500).json({ 
+      error: 'حدث خطأ في معالجة الطلب عبر الـ AI', 
+      details: error.message 
+    });
   }
 });
 
-// المنفذ الخاص بالسيرفر السحابي
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`AI Server running on port ${PORT}`);
