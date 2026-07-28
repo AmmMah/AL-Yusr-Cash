@@ -51,13 +51,13 @@ app.post('/process-ai', async (req, res) => {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        // نستخدم موديل Gemini 2.0 المجاني المتاح عبر OpenRouter
-        model: 'google/gemini-2.0-flash-001:free',
-        messages: [{ role: 'user', content: prompt }],
-        tools: tools,
-        tool_choice: 'auto',
-      }),
+     body: JSON.stringify({
+  // تم تصحيح اسم الموديل هنا
+  model: 'google/gemini-2.0-flash-exp:free',
+  messages: [{ role: 'user', content: prompt }],
+  tools: tools,
+  tool_choice: 'auto',
+}),
     });
 
     const data = await response.json();
