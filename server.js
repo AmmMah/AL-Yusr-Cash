@@ -16,30 +16,31 @@ if (!OPENROUTER_API_KEY) {
   console.log("✅ OPENROUTER_API_KEY loaded successfully.");
 }
 
-// 1. تعريف الأدوات (Tools): إضافة عميل + تسجيل حركة/حركات مالية متعددة
+// 1. تعريف الأدوات (Tools): إضافة عميل/مجموعة + تسجيل حركات مالية
 const tools = [
   {
     type: 'function',
     function: {
       name: 'createEntity',
-      description: 'إنشاء أو إضافة عميل/زبون/مجموعة جديدة في النظام',
+      description: 'إنشاء أو إضافة عميل/زبون جديد أو مجموعة/شركة جديدة في النظام',
       parameters: {
         type: 'object',
         properties: {
           name: {
             type: 'string',
-            description: 'اسم العميل أو الجهة المالية أو الشركة',
+            description: 'اسم العميل أو اسم المجموعة / الشركة',
           },
           entityType: {
             type: 'string',
-            description: 'نوع الكيان: client للعملاء المباشرين، أو group للمجموعات',
+            enum: ['client', 'group'],
+            description: 'نوع الكيان: client للعملاء المباشرين، أو group للمجموعات والشركات',
           },
           notes: {
             type: 'string',
-            description: 'ملاحظات إضافية عن العميل إن وجدت',
+            description: 'ملاحظات إضافية عن العميل أو المجموعة إن وجدت',
           },
         },
-        required: ['name'],
+        required: ['name', 'entityType'],
       },
     },
   },
@@ -47,7 +48,7 @@ const tools = [
     type: 'function',
     function: {
       name: 'recordMultipleTransactions',
-      description: 'تسجيل حركة واحدة أو عدة حركات مالية دفعة واحدة لعميل واحد أو عدة عملاء (لنا/لكم، قبض/صرف)',
+      description: 'تسجيل حركة واحدة أو عدة حركات مالية دفعة واحدة لعميل أو لمجموعة/شركة (لنا/لكم، قبض/صرف)',
       parameters: {
         type: 'object',
         properties: {
@@ -59,12 +60,17 @@ const tools = [
               properties: {
                 entityName: {
                   type: 'string',
-                  description: 'اسم العميل أو الكيان المالي المراد تسجيل الحركة عليه',
+                  description: 'اسم العميل أو اسم المجموعة/الشركة المراد تسجيل الحركة عليها',
+                },
+                entityType: {
+                  type: 'string',
+                  enum: ['client', 'group'],
+                  description: 'نوع الكيان إذا ذُكر: client لعميل، group لمجموعة. إذا لم يحدد اتركه فارغاً',
                 },
                 direction: {
                   type: 'string',
                   enum: ['LANA', 'LAKUM'],
-                  description: 'اتجاه الحركة: LANA (لنا/قبض/دين لنا)، LAKUM (لكم/صرف/دفعة للزبون علينا)',
+                  description: 'اتجاه الحركة: LANA (لنا/قبض/دين لنا)، LAKUM (لكم/صرف/دفعة للزبون أو المجموعة)',
                 },
                 amount: {
                   type: 'number',
@@ -72,11 +78,11 @@ const tools = [
                 },
                 currencyCode: {
                   type: 'string',
-                  description: 'رمز العملة المذكورة مثل USD, SYP, EUR, TRY. إذا لم تذكر اتركها فارغة',
+                  description: 'رمز العملة مثل USD, SYP, EUR, TRY. إذا لم تذكر اتركها فارغة',
                 },
                 note: {
                   type: 'string',
-                  description: 'ملاحظات أو بيان العملية (مثل: إيجار، دفعة حساب، سداد فاتورة)',
+                  description: 'ملاحظات أو بيان العملية',
                 },
               },
               required: ['entityName', 'direction', 'amount'],
@@ -130,7 +136,6 @@ app.post('/process-ai', async (req, res) => {
       return res.status(500).json({ error: 'لم يتم استلام رد من النموذج' });
     }
 
-    // إذا قرر الـ AI استدعاء إحدى الدوال
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
       const toolCall = responseMessage.tool_calls[0];
       let functionArgs = {};
@@ -150,7 +155,6 @@ app.post('/process-ai', async (req, res) => {
       });
     }
 
-    // إذا كان الرد مجرد سؤال أو استفسار عادي
     return res.json({
       type: 'TEXT',
       message: responseMessage.content || '',
