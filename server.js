@@ -111,7 +111,7 @@ app.post('/process-ai', async (req, res) => {
 
     // استدعاء موديل Gemini 2.5 Flash السريع والمجاني
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         tools: [{
