@@ -56,6 +56,46 @@ const tools = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'manageTrustDebt',
+      description: 'إدارة الأمانات والديون (تسجيل أمانة جديدة، تسجيل دين جديد، تعديل، أو تسوية/سداد)',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['CREATE', 'UPDATE', 'SETTLE'] },
+          type: { type: 'string', enum: ['trust', 'debt'] },
+          name: { type: 'string' },
+          amount: { type: 'number' },
+          currencyCode: { type: 'string' },
+          note: { type: 'string' },
+        },
+        required: ['action', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manageCurrencies',
+      description: 'إدارة عملات الدرج وأسعار الصرف (إضافة عملة، تعديل سعر الصرف، حذف عملة، تعديل رصيد الدرج)',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { 
+            type: 'string', 
+            enum: ['ADD_CURRENCY', 'UPDATE_RATE', 'DELETE_CURRENCY', 'UPDATE_BALANCE'],
+          },
+          currencyCode: { type: 'string' },
+          currencyName: { type: 'string' },
+          exchangeRate: { type: 'number' },
+          newBalance: { type: 'number' },
+        },
+        required: ['action', 'currencyCode'],
+      },
+    },
+  },
 ];
 
 // 2. الـ Endpoint الرئيسية
@@ -81,7 +121,7 @@ app.post('/process-ai', async (req, res) => {
         'X-Title': 'Al-Yusr Cash System',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // نموذج قوي ومستقر ويدعم الـ Tools
+        model: 'openrouter/free', // اختيار تلقائي لأفضل نموذج مجاني متاح
         messages: [{ role: 'user', content: prompt }],
         tools: tools,
         tool_choice: 'auto',
